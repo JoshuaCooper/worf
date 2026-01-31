@@ -1,0 +1,42 @@
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - busybox
+    - bash
+    - apk-tools
+    - git
+    - wget 
+    - apko 
+    - ca-certificates-bundle
+    - glibc-locale-posix
+    - wolfi-baselayout
+    - wolfi-keys
+    - build-base
+    - py3-pip
+    - python3-dev
+    - uv
+    - python-3 
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+  run-as: 65532
+
+entrypoint:
+  command: /usr/bin/image_builder.py
+
+work-dir: /work 
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+
+archs:
+ - amd64
