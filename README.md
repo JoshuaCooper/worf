@@ -19,6 +19,9 @@ A user interface for building custom APKO files to then push to APKO-Server via 
 ### Offline Mode [NOT STARTED]
 The goal is be able to take this into a system/location without network resources and continue to deploy your applications. 
 
+### What is Wolfi-OS
+Wolfi-OS, developed by Chainguard, is a minimal, secure Linux distribution for building container images. It emphasizes reproducibility, simplicity, and modern container-focused workflows.
+
 ### Getting started
 The WORF system is entered via `make start`, this will execute the initial build leveraging ChainGuard's APKO image to initialize the first image, then creating a custom another APKO image with python so we can start 
 
@@ -36,6 +39,3 @@ curl -X POST \
     -F "file=@example_apko_file.yaml" \
     http://localhost:8081/upload
 </pre>
-
-
-
