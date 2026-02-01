@@ -24,15 +24,16 @@ restart: ## Restart all services
 	@echo "Restarting WORF ---"
 	@docker compose down > /dev/null 2>&1
 
+       	#> /dev/null 2>&1
 start: ## Start W.O.R.F. 
 	@clear
 	@cat ./assets/logo.txt
 	@docker run -v "$(INIT_SERVER_PATH)":/work cgr.dev/chainguard/apko \
 		build apko_server.yaml apko-server:latest apko_init.tar \
 		> /dev/null 2>&1
-	@docker load < $(INIT_SERVER_PATH)/apko_init.tar > /dev/null 2>&1
+	@docker load < $(INIT_SERVER_PATH)/apko_init.tar
 	@echo "Starting W.O.R.F. network"
-	@docker compose up --no-start > /dev/null 2>&1
+	@docker compose up --no-start
 	@echo "Starting: $(SERVICE_NAME)"
 	@if ! docker compose -f $(COMPOSE_FILE) ps | grep -q $(SERVICE_NAME); then \
 		echo "$(SERVICE_NAME) container is not running. Starting it..."; \
