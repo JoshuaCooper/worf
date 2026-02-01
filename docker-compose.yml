@@ -19,7 +19,7 @@ services:
 
   apko-flask-server:
     build:
-      context: ./assets/apko_server
+      context: ./infra/apko_server
       dockerfile: Dockerfile
     container_name: apko-flask-server
     ports:
