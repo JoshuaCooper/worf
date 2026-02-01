@@ -10,9 +10,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./infra/packages:/var/www/apks:ro
-      - ./infra/nginx/nginx.conf/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/nginx/sites-enabled:/etc/nginx/sites-enabled:ro
+      - ./infra/packages:/var/www/apks:rw
+      - ./infra/nginx:/etc/nginx/conf.d
+      - ./infra/packages:/var/cache/nginx/apk:rw
     restart: unless-stopped
     networks:
       - worf
