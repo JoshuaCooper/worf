@@ -39,8 +39,6 @@ def upload_yaml():
             yaml_path,
             f"registry.localhost:5000/{image_name}:{image_tag}",
         ],
-        capture_output=True,
-        text=True,
         check=True
     )
     print("-"*80)
