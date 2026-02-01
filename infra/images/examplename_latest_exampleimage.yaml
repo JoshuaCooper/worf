@@ -1,8 +1,8 @@
 contents:
   keyring:
-    - http://apk-server:8080/wolfi-signing.rsa.pub
+    - http://apk-server:8080/os/wolfi-signing.rsa.pub
   repositories:
-    - http://apk-server:8080/
+    - http://apk-server:8080/os
   packages:
     - python-3.13 
     - python-3.13-base
