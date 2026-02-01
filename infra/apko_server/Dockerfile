@@ -3,7 +3,7 @@ FROM apko-server:latest-amd64 AS apko_flask_server
 USER root
 WORKDIR /app
 COPY requirements.txt .
-COPY logo.txt .
+COPY ./logo.txt .
 RUN python -m venv /app/venv
 RUN pip install --no-cache-dir -r requirements.txt
 
