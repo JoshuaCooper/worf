@@ -7,6 +7,18 @@ INIT_SERVER_PATH = $(PROJECT_DIR)/infra/init_container/
 INIT_FILE_PATH = $(INIT_SERVER_PATH)/apko_server.yaml
 INIT_IMAGE_NAME = apko-server:latest
 
+## Log suppression
+## make start QUIET=0
+QUIET ?= 1
+
+QUIET ?= 0
+
+ifeq ($(QUIET),1)
+REDIRECT := > /dev/null 2>&1
+else
+REDIRECT :=
+endif
+
 help: ## Show this help message
 	@echo "W.O.R.F. Docker Management help"
 	@echo "========================="
@@ -14,15 +26,15 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build images
-	@docker compose build > /dev/null 2>&1
+	@docker compose build $(REDIRECT)
 	@echo "Building base images"
 
 down: ## Stop all services
-	@docker compose down > /dev/null 2>&1
+	@docker compose down $(REDIRECT)
 
 restart: ## Restart all services
 	@echo "Restarting WORF ---"
-	@docker compose down > /dev/null 2>&1
+	@docker compose down $(REDIRECT)
 
        	#> /dev/null 2>&1
 start: ## Start W.O.R.F. 
@@ -37,7 +49,7 @@ start: ## Start W.O.R.F.
 	@echo "Starting: $(SERVICE_NAME)"
 	@if ! docker compose -f $(COMPOSE_FILE) ps | grep -q $(SERVICE_NAME); then \
 		echo "$(SERVICE_NAME) container is not running. Starting it..."; \
-		docker compose -f $(COMPOSE_FILE) up -d $(SERVICE_NAME) > /dev/null 2>&1; \
+		docker compose -f $(COMPOSE_FILE) up -d $(SERVICE_NAME) $(REDIRECT); \
 	else \
 		echo "  - $(SERVICE_NAME) container is already running."; \
 	fi
@@ -45,9 +57,13 @@ start: ## Start W.O.R.F.
 	@echo "Cleaning up working directory"
 	@rm $(INIT_SERVER_PATH)/*.json -f
 	@rm $(INIT_SERVER_PATH)/*.tar -f
-	@docker compose -f docker-compose.yml up -d apko-flask-server > /dev/null 2>&1
+	@docker compose -f docker-compose.yml up -d apko-flask-server $(REDIRECT)
 	@echo "starting apk-server"
-	@docker compose -f docker-compose.yml up -d apk-server > /dev/null 2>&1
+	@docker compose -f docker-compose.yml up -d apk-server $(REDIRECT)
+
+customise: ## Test work for custom APK server
+	@clear 
+	@echo "D.A.T.A -- Customizer"
 
 build-images:
 	@echo "---- Building Images Stored in /images now ----"
