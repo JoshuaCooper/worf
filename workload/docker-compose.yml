@@ -1,0 +1,20 @@
+networks:
+  shared_network:
+    name: shared_network
+    driver: bridge
+
+services:
+  apk-serverz:
+    image: cgr.dev/chainguard/nginx:latest-dev
+    container_name: apk-serverz
+    volumes:
+      - ./infra/nginx:/etc/nginx/conf.d:ro
+      - ./infra/local-repo:/srv/local-repo:ro
+    ports:
+      - "8081:8081"
+    tmpfs:
+      - /var/cache/nginx/wolfi:uid=65532,gid=65532
+      - /var/log/nginx:uid=65532,gid=65532
+    restart: unless-stopped
+    networks:
+      - shared_network

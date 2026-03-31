@@ -1,0 +1,67 @@
+import yaml
+from rich.console import Console
+from rich.prompt import Prompt, Confirm
+
+console = Console()
+
+def ask_packages():
+    packages = []
+    console.print("\n[bold green]Add packages (type 'done' when finished):[/bold green]")
+    while True:
+        pkg = Prompt.ask("Package")
+        if pkg.lower() == "done":
+            break
+        packages.append(pkg)
+    return packages
+
+def ask_files():
+    files = []
+    console.print("\n[bold green]Add files (type 'done' as source to finish):[/bold green]")
+    while True:
+        source = Prompt.ask("Source")
+        if source.lower() == "done":
+            break
+        destination = Prompt.ask("Destination")
+        files.append({"source": source, "destination": destination})
+    return files
+
+def ask_entrypoint():
+    entrypoint = []
+    console.print("\n[bold green]Add entrypoint commands (type 'done' when finished):[/bold green]")
+    while True:
+        cmd = Prompt.ask("Command")
+        if cmd.lower() == "done":
+            break
+        entrypoint.append(cmd)
+    return entrypoint
+
+def main():
+    console.print("[bold cyan]APKO YAML TUI Builder[/bold cyan]\n")
+    
+    name = Prompt.ask("Image name")
+    version = Prompt.ask("Version", default="1.0.0")
+    
+    packages = ask_packages()
+    files = ask_files()
+    entrypoint = ask_entrypoint()
+    
+    apko_data = {
+        "name": name,
+        "version": version,
+        "packages": packages,
+        "files": files,
+        "entrypoint": entrypoint
+    }
+
+    console.print("\n[bold yellow]Generated APKO YAML:[/bold yellow]")
+    console.print(yaml.dump(apko_data, sort_keys=False))
+    
+    if Confirm.ask("Save YAML to infra/images folder?"):
+        filepath = f"infra/images/{name}_custom.yaml"
+        with open(filepath, "w") as f:
+            yaml.dump(apko_data, f, sort_keys=False)
+        console.print(f"[bold green]Saved to {filepath}[/bold green]")
+
+if __name__ == "__main__":
+    main()
+
