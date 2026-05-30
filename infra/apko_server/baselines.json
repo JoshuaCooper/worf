@@ -1,0 +1,134 @@
+[
+  {
+    "id": "minimal",
+    "name": "Minimal",
+    "description": "Bare Wolfi base with a shell",
+    "image_name": "minimal",
+    "image_tag": "latest",
+    "entrypoint": "/bin/sh",
+    "work_dir": "",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [],
+    "packages": [
+      "wolfi-baselayout",
+      "busybox"
+    ]
+  },
+  {
+    "id": "python-3.12",
+    "name": "Python 3.12",
+    "description": "Python 3.12 runtime with pip",
+    "image_name": "python",
+    "image_tag": "3.12",
+    "entrypoint": "/usr/bin/python3",
+    "work_dir": "",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [
+      { "key": "PYTHONUNBUFFERED", "value": "1" }
+    ],
+    "packages": [
+      "wolfi-baselayout",
+      "python-3.12",
+      "py3.12-pip",
+      "busybox"
+    ]
+  },
+  {
+    "id": "python-3.13",
+    "name": "Python 3.13",
+    "description": "Python 3.13 runtime with pip",
+    "image_name": "python",
+    "image_tag": "3.13",
+    "entrypoint": "/usr/bin/python3",
+    "work_dir": "",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [
+      { "key": "PYTHONUNBUFFERED", "value": "1" }
+    ],
+    "packages": [
+      "wolfi-baselayout",
+      "python-3.13",
+      "py3.13-pip",
+      "busybox"
+    ]
+  },
+  {
+    "id": "nginx",
+    "name": "Nginx",
+    "description": "Nginx web server",
+    "image_name": "nginx",
+    "image_tag": "latest",
+    "entrypoint": "/usr/sbin/nginx -g 'daemon off;'",
+    "work_dir": "",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [],
+    "packages": [
+      "wolfi-baselayout",
+      "nginx"
+    ]
+  },
+  {
+    "id": "nodejs",
+    "name": "Node.js",
+    "description": "Node.js runtime with npm",
+    "image_name": "node",
+    "image_tag": "latest",
+    "entrypoint": "/usr/bin/node",
+    "work_dir": "/app",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [
+      { "key": "NODE_ENV", "value": "production" }
+    ],
+    "packages": [
+      "wolfi-baselayout",
+      "nodejs",
+      "npm",
+      "busybox"
+    ]
+  },
+  {
+    "id": "go",
+    "name": "Go",
+    "description": "Go toolchain for building Go applications",
+    "image_name": "go",
+    "image_tag": "latest",
+    "entrypoint": "/usr/bin/go",
+    "work_dir": "/work",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [
+      { "key": "GOPATH", "value": "/go" },
+      { "key": "CGO_ENABLED", "value": "0" }
+    ],
+    "packages": [
+      "wolfi-baselayout",
+      "go",
+      "busybox",
+      "git"
+    ]
+  },
+  {
+    "id": "java-17",
+    "name": "Java 17 (JRE)",
+    "description": "OpenJDK 17 runtime environment",
+    "image_name": "java",
+    "image_tag": "17",
+    "entrypoint": "/usr/bin/java",
+    "work_dir": "/app",
+    "run_as": "65532",
+    "archs": ["amd64"],
+    "env": [
+      { "key": "JAVA_HOME", "value": "/usr/lib/jvm/java-17-openjdk" }
+    ],
+    "packages": [
+      "wolfi-baselayout",
+      "openjdk-17-jre",
+      "busybox"
+    ]
+  }
+]

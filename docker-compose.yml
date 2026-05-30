@@ -22,12 +22,11 @@ services:
       context: ./infra/apko_server
       dockerfile: Dockerfile
     container_name: apko-flask-server
-    ports:
-      - "8081:8081"
+    network_mode: host
     volumes:
       - ./infra/images:/app/images
-    networks:
-      - worf
+    environment:
+      - REGISTRY_HOST=localhost:5000
 
   registry:
     image: registry:2

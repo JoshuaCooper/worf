@@ -5,6 +5,9 @@ __pycache__/
 
 # Custom Section
 TODO.md
+working_list.md
+infra/apko_server/test_apko_flask_server.py
+infra/apko_server/test_package_index.py
 
 # C extensions
 *.so

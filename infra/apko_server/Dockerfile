@@ -1,15 +1,18 @@
-FROM apko-server:latest-amd64 AS apko_flask_server
+FROM cgr.dev/chainguard/python:latest-dev
 
 USER root
+RUN apk update
+RUN apk add apko
 WORKDIR /app
 COPY requirements.txt .
 COPY ./logo.txt .
-RUN python -m venv /app/venv
 RUN pip install --no-cache-dir -r requirements.txt
 
 ENV PYTHONUNBUFFERED=1
-ENV PATH="/venv/bin:$PATH"
 
 COPY apko_flask_server.py .
-#USER nonroot
+COPY package_index.py .
+COPY baselines.json .
+COPY templates/ ./templates/
+USER nonroot
 ENTRYPOINT ["python", "apko_flask_server.py"]

@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WORF — Image Builder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1      { font-size: 1rem; color: #58a6ff; letter-spacing: 0.1em; }
+    header .sub    { color: #8b949e; font-size: 0.8rem; }
+    #header-ref    { margin-left: auto; color: #3fb950; font-size: 0.8rem; }
+
+    /* ── Layout ──────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 290px 340px 1fr;
+      grid-template-rows: 1fr auto;
+      overflow: hidden;
+      transition: grid-template-columns 0.2s ease;
+    }
+    main.browser-collapsed {
+      grid-template-columns: 40px 340px 1fr;
+    }
+
+    .panel {
+      border-right: 1px solid #21262d;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid #21262d;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b949e;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Browser panel — expanded ────────────────────────── */
+    #browser-panel .browser-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    #browser-panel .browser-strip { display: none; }
+
+    #browser-panel.collapsed .browser-body  { display: none; }
+    #browser-panel.collapsed .browser-strip { display: flex; }
+
+    /* ── Repo bar ─────────────────────────────────────────── */
+    .repo-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+    }
+    .repo-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px 3px 7px;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: #8b949e;
+      font: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.1s, color 0.1s;
+    }
+    .repo-pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      opacity: 0.4;
+      transition: opacity 0.1s;
+    }
+    .repo-pill.active {
+      color: #c9d1d9;
+      border-color: #484f58;
+    }
+    .repo-pill.active .dot { opacity: 1; }
+
+    /* ── Package browser (expanded) ──────────────────────── */
+    #search-input {
+      width: 100%;
+      background: #161b22;
+      border: none;
+      border-bottom: 1px solid #21262d;
+      padding: 10px 16px;
+      color: #c9d1d9;
+      font: inherit;
+      font-size: 0.85rem;
+      outline: none;
+      flex-shrink: 0;
+    }
+    #search-input::placeholder { color: #484f58; }
+    #search-input:focus { border-bottom-color: #58a6ff; }
+
+    #package-count {
+      padding: 6px 16px;
+      font-size: 0.72rem;
+      color: #484f58;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+    }
+
+    #package-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+    }
+    #package-list li {
+      padding: 7px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #161b22;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    #package-list li:hover { background: #161b22; }
+    #package-list li.in-profile { opacity: 0.35; cursor: default; }
+
+    .repo-badge {
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #0d1117;
+      flex-shrink: 0;
+      margin-top: 3px;
+      letter-spacing: 0.03em;
+    }
+    .pkg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .pkg-name    { font-size: 0.85rem; color: #79c0ff; }
+    .pkg-version { font-size: 0.72rem; color: #8b949e; }
+    .pkg-desc    { font-size: 0.72rem; color: #6e7681; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #loading-msg { padding: 16px; color: #484f58; font-size: 0.8rem; }
+
+    /* ── Collapse/expand controls ────────────────────────── */
+    .collapse-btn {
+      background: none;
+      border: none;
+      color: #484f58;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0 2px;
+      line-height: 1;
+    }
+    .collapse-btn:hover { color: #8b949e; }
+
+    /* ── Collapsed strip ─────────────────────────────────── */
+    .browser-strip {
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 8px;
+      flex: 1;
+    }
+    .strip-btn {
+      background: none;
+      border: none;
+      color: #484f58;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 4px;
+      line-height: 1;
+    }
+    .strip-btn:hover { color: #8b949e; }
+    .strip-dots {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .strip-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.1s;
+      border: none;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .strip-dot.active { opacity: 1; }
+    .strip-dot:hover  { opacity: 0.8; }
+
+    /* ── Profile panel ───────────────────────────────────── */
+    .baseline-bar {
+      padding: 8px 16px;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .baseline-bar label { font-size: 0.72rem; color: #8b949e; white-space: nowrap; }
+    #baseline-select {
+      flex: 1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 5px 8px;
+      color: #c9d1d9;
+      font: inherit;
+      font-size: 0.8rem;
+      outline: none;
+      cursor: pointer;
+    }
+    #baseline-select:focus { border-color: #58a6ff; }
+    #baseline-select option { background: #161b22; }
+
+    #profile-scroll {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .profile-section {
+      padding: 12px 16px;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+    }
+    .profile-section > label {
+      display: block;
+      font-size: 0.7rem;
+      color: #8b949e;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .profile-section input[type="text"] {
+      width: 100%;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 6px 10px;
+      color: #c9d1d9;
+      font: inherit;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .profile-section input[type="text"]:focus { border-color: #58a6ff; }
+
+    .ref-row { display: flex; align-items: center; gap: 4px; }
+    .ref-row input { flex: 1; min-width: 0; }
+    .ref-sep { color: #484f58; font-size: 0.9rem; flex-shrink: 0; padding: 0 1px; }
+    #image-user { max-width: 90px; }
+    #image-tag  { max-width: 72px; }
+
+    .arch-toggles { display: flex; gap: 16px; }
+    .arch-toggles label {
+      display: flex; align-items: center; gap: 6px;
+      text-transform: none; letter-spacing: 0;
+      cursor: pointer; font-size: 0.85rem; color: #c9d1d9;
+    }
+
+    .env-row {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+    }
+    .env-row input {
+      flex: 1; min-width: 0;
+      background: #161b22; border: 1px solid #30363d; border-radius: 4px;
+      padding: 5px 8px; color: #c9d1d9; font: inherit; font-size: 0.8rem; outline: none;
+    }
+    .env-row input:focus { border-color: #58a6ff; }
+    .env-sep { color: #484f58; font-size: 0.8rem; flex-shrink: 0; }
+
+    .remove-btn {
+      background: none; border: none; color: #6e7681;
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 3px; flex-shrink: 0;
+    }
+    .remove-btn:hover { color: #f85149; }
+
+    .add-btn {
+      background: none; border: 1px solid #30363d; border-radius: 4px;
+      color: #8b949e; cursor: pointer; font: inherit; font-size: 0.75rem;
+      padding: 4px 10px; margin-top: 2px;
+    }
+    .add-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    .packages-header {
+      padding: 8px 16px; font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #8b949e; border-bottom: 1px solid #21262d;
+      flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    }
+
+    #profile-packages {
+      flex: 1; overflow-y: auto; list-style: none; min-height: 80px;
+    }
+    #profile-packages li {
+      padding: 7px 16px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid #161b22; font-size: 0.85rem;
+    }
+    #profile-packages li:hover { background: #161b22; }
+    .empty-msg { padding: 14px 16px; color: #484f58; font-size: 0.8rem; }
+
+    /* ── YAML editor ─────────────────────────────────────── */
+    .yaml-toolbar {
+      padding: 7px 16px; border-bottom: 1px solid #21262d;
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .yaml-badge {
+      font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+      background: #161b22; color: #8b949e; border: 1px solid #30363d;
+    }
+    .yaml-badge.modified { background: #2d1e00; color: #e3b341; border-color: #9e6a03; }
+    .btn-ghost {
+      background: none; border: 1px solid #30363d; border-radius: 4px;
+      color: #8b949e; cursor: pointer; font: inherit; font-size: 0.72rem; padding: 3px 10px;
+    }
+    .btn-ghost:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    #yaml-editor {
+      flex: 1; background: #0d1117; color: #adbac7; border: none;
+      padding: 16px; font: inherit; font-size: 0.8rem; line-height: 1.6;
+      resize: none; outline: none;
+    }
+    #yaml-editor::placeholder { color: #484f58; }
+
+    /* ── Bottom bar ──────────────────────────────────────── */
+    #bottom-bar {
+      grid-column: 1 / -1; border-top: 1px solid #21262d;
+      padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .btn { padding: 6px 16px; border-radius: 4px; border: none; font: inherit; font-size: 0.8rem; cursor: pointer; }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-primary:disabled { background: #21262d; color: #484f58; cursor: default; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-secondary:hover { background: #30363d; }
+
+    #build-status { font-size: 0.8rem; color: #8b949e; }
+    #build-status.success { color: #3fb950; }
+    #build-status.failed  { color: #f85149; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>W.O.R.F.</h1>
+  <span class="sub">Image Builder</span>
+  <span id="header-ref"></span>
+</header>
+
+<main id="main-grid">
+
+  <!-- ── Package browser ─────────────────────────── -->
+  <section class="panel" id="browser-panel">
+    <div class="panel-header">
+      <span>Packages</span>
+      <button class="collapse-btn" id="collapse-btn" title="Collapse panel">◀</button>
+    </div>
+
+    <!-- Expanded content -->
+    <div class="browser-body">
+      <div class="repo-bar" id="repo-bar">
+        <!-- repo pills injected by JS -->
+      </div>
+      <input id="search-input" type="text" placeholder="Search packages…" autocomplete="off" spellcheck="false">
+      <div id="package-count"></div>
+      <ul id="package-list">
+        <li id="loading-msg">Loading package index…</li>
+      </ul>
+    </div>
+
+    <!-- Collapsed strip -->
+    <div class="browser-strip" id="browser-strip">
+      <button class="strip-btn" id="expand-btn" title="Expand panel">▶</button>
+      <div class="strip-dots" id="strip-dots">
+        <!-- strip dots injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Image profile ───────────────────────────── -->
+  <section class="panel">
+    <div class="panel-header">Image Profile</div>
+    <div class="baseline-bar">
+      <label>Baseline</label>
+      <select id="baseline-select">
+        <option value="">— start from scratch —</option>
+      </select>
+    </div>
+    <div id="profile-scroll">
+
+      <div class="profile-section">
+        <label>Image Reference</label>
+        <div class="ref-row">
+          <input type="text" id="image-user" placeholder="user">
+          <span class="ref-sep">/</span>
+          <input type="text" id="image-name" placeholder="name" value="my-image">
+          <span class="ref-sep">:</span>
+          <input type="text" id="image-tag"  placeholder="tag"  value="latest">
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <label>Entrypoint</label>
+        <input type="text" id="entrypoint" placeholder="/bin/sh">
+      </div>
+
+      <div class="profile-section">
+        <label>Work Dir</label>
+        <input type="text" id="work-dir" placeholder="/work">
+      </div>
+
+      <div class="profile-section">
+        <label>Run as (UID)</label>
+        <input type="text" id="run-as" value="65532">
+      </div>
+
+      <div class="profile-section">
+        <label>Architectures</label>
+        <div class="arch-toggles">
+          <label><input type="checkbox" id="arch-amd64" checked> amd64</label>
+          <label><input type="checkbox" id="arch-aarch64"> aarch64</label>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <label>Environment Variables</label>
+        <div id="env-rows"></div>
+        <button class="add-btn" id="add-env-btn">+ Add variable</button>
+      </div>
+
+      <div class="packages-header">
+        Selected packages
+        <span id="pkg-count-badge" style="color:#58a6ff"></span>
+      </div>
+      <ul id="profile-packages">
+        <li class="empty-msg">No packages added yet.</li>
+      </ul>
+
+    </div>
+  </section>
+
+  <!-- ── YAML editor ─────────────────────────────── -->
+  <section class="panel">
+    <div class="panel-header">APKO YAML</div>
+    <div class="yaml-toolbar">
+      <span class="yaml-badge" id="yaml-badge">auto</span>
+      <button class="btn-ghost" id="yaml-regen-btn" style="display:none">Regenerate from profile</button>
+    </div>
+    <textarea id="yaml-editor" spellcheck="false" placeholder="# Add packages to generate YAML"></textarea>
+  </section>
+
+  <!-- ── Bottom bar ──────────────────────────────── -->
+  <div id="bottom-bar">
+    <button class="btn btn-primary"   id="build-btn"  disabled>Build image</button>
+    <button class="btn btn-secondary" id="clear-btn">Clear</button>
+    <span id="build-status"></span>
+  </div>
+
+</main>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let repoConfigs   = [];             // [{id, name, color, short, base_url, keyring}]
+let repoEnabled   = {};             // { repoId: bool }
+let repoPackages  = {};             // { repoId: [pkg] } — client-side cache
+let allPackages   = [];             // merged list currently displayed
+let yamlModified  = false;
+let envRows       = [];
+const profile     = { packages: [] };
+
+
+// ─── Repo helpers ─────────────────────────────────────────────────────────────
+function activeRepos() {
+  return repoConfigs.filter(r => repoEnabled[r.id]);
+}
+
+function repoById(id) {
+  return repoConfigs.find(r => r.id === id);
+}
+
+
+// ─── Load repos & boot ────────────────────────────────────────────────────────
+async function loadRepos() {
+  try {
+    const resp = await fetch("/repos");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    repoConfigs = await resp.json();
+  } catch (err) {
+    repoConfigs = [{ id: "wolfi", name: "Wolfi OS", color: "#58a6ff", short: "W",
+      base_url: "https://packages.wolfi.dev/os",
+      keyring:  "https://packages.wolfi.dev/os/wolfi-signing.rsa.pub" }];
+    console.warn("Could not load repos from server, using fallback:", err.message);
+  }
+
+  // Wolfi on by default
+  repoConfigs.forEach(r => { repoEnabled[r.id] = (r.id === "wolfi"); });
+
+  buildRepoBar();
+  buildStripDots();
+
+  // Fetch packages for all enabled repos
+  await Promise.all(repoConfigs.filter(r => repoEnabled[r.id]).map(r => fetchRepoPackages(r.id)));
+  rebuildPackageList();
+}
+
+async function fetchRepoPackages(repoId) {
+  if (repoPackages[repoId]) return; // already cached
+  try {
+    const resp = await fetch(`/packages?repo=${repoId}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const pkgs = await resp.json();
+    pkgs.sort((a, b) => a.name.localeCompare(b.name));
+    repoPackages[repoId] = pkgs;
+  } catch (err) {
+    repoPackages[repoId] = [];
+    console.warn(`Failed to load packages for ${repoId}:`, err.message);
+  }
+}
+
+
+// ─── Repo bar & strip ─────────────────────────────────────────────────────────
+function buildRepoBar() {
+  const bar = document.getElementById("repo-bar");
+  bar.innerHTML = "";
+  for (const repo of repoConfigs) {
+    const btn = document.createElement("button");
+    btn.className = "repo-pill" + (repoEnabled[repo.id] ? " active" : "");
+    btn.dataset.repo = repo.id;
+    btn.innerHTML = `<span class="dot" style="background:${repo.color}"></span>${repo.name}`;
+    btn.addEventListener("click", () => toggleRepo(repo.id));
+    bar.appendChild(btn);
+  }
+}
+
+function buildStripDots() {
+  const container = document.getElementById("strip-dots");
+  container.innerHTML = "";
+  for (const repo of repoConfigs) {
+    const btn = document.createElement("button");
+    btn.className = "strip-dot" + (repoEnabled[repo.id] ? " active" : "");
+    btn.dataset.repo = repo.id;
+    btn.style.background = repo.color;
+    btn.title = repo.name;
+    btn.addEventListener("click", () => toggleRepo(repo.id));
+    container.appendChild(btn);
+  }
+}
+
+async function toggleRepo(repoId) {
+  repoEnabled[repoId] = !repoEnabled[repoId];
+
+  // Update both pill and strip dot
+  const pill = document.querySelector(`.repo-pill[data-repo="${repoId}"]`);
+  if (pill) pill.classList.toggle("active", repoEnabled[repoId]);
+  const dot = document.querySelector(`.strip-dot[data-repo="${repoId}"]`);
+  if (dot)  dot.classList.toggle("active", repoEnabled[repoId]);
+
+  if (repoEnabled[repoId] && !repoPackages[repoId]) {
+    await fetchRepoPackages(repoId);
+  }
+
+  rebuildPackageList();
+  autoRenderYaml();
+}
+
+
+// ─── Package list ─────────────────────────────────────────────────────────────
+const MAX_DISPLAY = 100;
+
+function rebuildPackageList() {
+  const seen = new Map(); // name → pkg (with repo field)
+  for (const repo of activeRepos()) {
+    for (const pkg of (repoPackages[repo.id] || [])) {
+      if (!seen.has(pkg.name)) seen.set(pkg.name, { ...pkg, _repo: repo.id });
+    }
+  }
+  allPackages = Array.from(seen.values());
+  allPackages.sort((a, b) => a.name.localeCompare(b.name));
+  refilterPackageList();
+}
+
+function renderPackageList(pkgs) {
+  const ul      = document.getElementById("package-list");
+  const counter = document.getElementById("package-count");
+  ul.innerHTML  = "";
+
+  if (!pkgs.length) {
+    counter.textContent = "No matches";
+    ul.innerHTML = `<li style="padding:12px 16px;color:#484f58;font-size:0.8rem">No packages match.</li>`;
+    return;
+  }
+
+  const visible = pkgs.slice(0, MAX_DISPLAY);
+  counter.textContent = pkgs.length > MAX_DISPLAY
+    ? `Showing ${MAX_DISPLAY} of ${pkgs.length} — refine your search`
+    : `${pkgs.length} package${pkgs.length === 1 ? "" : "s"}`;
+
+  for (const pkg of visible) {
+    const repo = repoById(pkg._repo);
+    const li = document.createElement("li");
+    if (profile.packages.includes(pkg.name)) li.classList.add("in-profile");
+
+    li.innerHTML = `
+      <span class="repo-badge" style="background:${repo?.color || '#484f58'}" title="${repo?.name || ''}">${repo?.short || '?'}</span>
+      <div class="pkg-info">
+        <span class="pkg-name">${pkg.name}</span>
+        <span class="pkg-version">${pkg.version}</span>
+        <span class="pkg-desc">${pkg.description || ""}</span>
+      </div>
+    `;
+    li.addEventListener("click", () => {
+      if (!profile.packages.includes(pkg.name)) addPackage(pkg.name);
+    });
+    ul.appendChild(li);
+  }
+}
+
+function refilterPackageList() {
+  const q = document.getElementById("search-input").value.trim().toLowerCase();
+  renderPackageList(q
+    ? allPackages.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q) ||
+        (p.origin || "").toLowerCase().includes(q))
+    : allPackages);
+}
+
+document.getElementById("search-input").addEventListener("input", refilterPackageList);
+
+
+// ─── Package mutations ─────────────────────────────────────────────────────────
+function addPackage(name) {
+  if (profile.packages.includes(name)) return;
+  profile.packages.push(name);
+  renderProfilePackages();
+  autoRenderYaml();
+  refilterPackageList();
+}
+
+function removePackage(name) {
+  profile.packages = profile.packages.filter(p => p !== name);
+  renderProfilePackages();
+  autoRenderYaml();
+  refilterPackageList();
+}
+
+function renderProfilePackages() {
+  const ul    = document.getElementById("profile-packages");
+  const badge = document.getElementById("pkg-count-badge");
+  ul.innerHTML = "";
+  badge.textContent = profile.packages.length ? `(${profile.packages.length})` : "";
+
+  if (!profile.packages.length) {
+    ul.innerHTML = `<li class="empty-msg">No packages added yet.</li>`;
+    document.getElementById("build-btn").disabled = true;
+    return;
+  }
+  for (const name of profile.packages) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${name}</span><button class="remove-btn" title="Remove">×</button>`;
+    li.querySelector(".remove-btn").addEventListener("click", () => removePackage(name));
+    ul.appendChild(li);
+  }
+  document.getElementById("build-btn").disabled = false;
+}
+
+
+// ─── Collapse / expand ────────────────────────────────────────────────────────
+document.getElementById("collapse-btn").addEventListener("click", () => {
+  document.getElementById("main-grid").classList.add("browser-collapsed");
+  document.getElementById("browser-panel").classList.add("collapsed");
+});
+document.getElementById("expand-btn").addEventListener("click", () => {
+  document.getElementById("main-grid").classList.remove("browser-collapsed");
+  document.getElementById("browser-panel").classList.remove("collapsed");
+});
+
+
+// ─── Env vars ──────────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function renderEnvRows() {
+  const container = document.getElementById("env-rows");
+  container.innerHTML = "";
+  envRows.forEach((row, i) => {
+    const div = document.createElement("div");
+    div.className = "env-row";
+    div.innerHTML = `
+      <input type="text" placeholder="KEY"   value="${esc(row.key)}"   data-i="${i}" data-f="key">
+      <span class="env-sep">=</span>
+      <input type="text" placeholder="value" value="${esc(row.value)}" data-i="${i}" data-f="val">
+      <button class="remove-btn" data-i="${i}">×</button>
+    `;
+    div.querySelectorAll("input").forEach(inp => inp.addEventListener("input", e => {
+      envRows[+e.target.dataset.i][e.target.dataset.f === "key" ? "key" : "value"] = e.target.value;
+      autoRenderYaml();
+    }));
+    div.querySelector(".remove-btn").addEventListener("click", e => {
+      envRows.splice(+e.target.dataset.i, 1);
+      renderEnvRows();
+      autoRenderYaml();
+    });
+    container.appendChild(div);
+  });
+}
+
+document.getElementById("add-env-btn").addEventListener("click", () => {
+  envRows.push({ key: "", value: "" });
+  renderEnvRows();
+});
+
+
+// ─── YAML generation ───────────────────────────────────────────────────────────
+function generateYaml() {
+  if (!profile.packages.length) return "";
+
+  const active     = activeRepos();
+  const entrypoint = document.getElementById("entrypoint").value.trim();
+  const workDir    = document.getElementById("work-dir").value.trim();
+  const runAs      = document.getElementById("run-as").value.trim() || "65532";
+  const archs      = [];
+  if (document.getElementById("arch-amd64").checked)   archs.push("amd64");
+  if (document.getElementById("arch-aarch64").checked) archs.push("aarch64");
+  if (!archs.length) archs.push("amd64");
+
+  const keyringLines = active.map(r => `    - ${r.keyring}`).join("\n");
+  const repoLines    = active.map(r => `    - ${r.base_url}`).join("\n");
+
+  let yaml = `contents:
+  keyring:
+${keyringLines}
+  repositories:
+${repoLines}
+  packages:
+${profile.packages.map(p => `    - ${p}`).join("\n")}
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+  run-as: ${runAs}
+`;
+
+  if (entrypoint) yaml += `\nentrypoint:\n  command: ${entrypoint}\n`;
+  if (workDir)    yaml += `\nwork-dir: ${workDir}\n`;
+
+  const validEnv = envRows.filter(r => r.key.trim());
+  if (validEnv.length) {
+    yaml += `\nenvironment:\n`;
+    validEnv.forEach(({ key, value }) => { yaml += `  ${key.trim()}: ${value}\n`; });
+  }
+
+  yaml += `\narchs:\n${archs.map(a => `  - ${a}`).join("\n")}\n`;
+  return yaml;
+}
+
+
+// ─── YAML panel state ──────────────────────────────────────────────────────────
+function autoRenderYaml() {
+  if (yamlModified) return;
+  document.getElementById("yaml-editor").value = generateYaml();
+}
+
+function forceRenderYaml() {
+  yamlModified = false;
+  document.getElementById("yaml-editor").value = generateYaml();
+  updateYamlBadge();
+}
+
+function updateYamlBadge() {
+  const badge    = document.getElementById("yaml-badge");
+  const regenBtn = document.getElementById("yaml-regen-btn");
+  if (yamlModified) {
+    badge.textContent = "edited"; badge.className = "yaml-badge modified";
+    regenBtn.style.display = "";
+  } else {
+    badge.textContent = "auto";  badge.className = "yaml-badge";
+    regenBtn.style.display = "none";
+  }
+}
+
+document.getElementById("yaml-editor").addEventListener("input", () => {
+  if (!yamlModified) { yamlModified = true; updateYamlBadge(); }
+});
+document.getElementById("yaml-regen-btn").addEventListener("click", forceRenderYaml);
+
+
+// ─── Profile field live updates ────────────────────────────────────────────────
+["entrypoint", "work-dir", "run-as", "image-user", "image-name", "image-tag",
+ "arch-amd64", "arch-aarch64"].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener("input",  () => { autoRenderYaml(); updateHeaderRef(); });
+  el.addEventListener("change", () => { autoRenderYaml(); updateHeaderRef(); });
+});
+
+
+// ─── Header ref ────────────────────────────────────────────────────────────────
+function getRef() {
+  const user = document.getElementById("image-user").value.trim();
+  const name = document.getElementById("image-name").value.trim() || "my-image";
+  const tag  = document.getElementById("image-tag").value.trim()  || "latest";
+  const imagePart = user ? `${user}/${name}` : name;
+  return { imagePart, tag, display: `${imagePart}:${tag}` };
+}
+
+function updateHeaderRef() {
+  document.getElementById("header-ref").textContent = getRef().display;
+}
+
+
+// ─── Baselines ─────────────────────────────────────────────────────────────────
+let baselines = [];
+
+async function loadBaselines() {
+  try {
+    const resp = await fetch("/baselines");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    baselines = await resp.json();
+    const select = document.getElementById("baseline-select");
+    for (const b of baselines) {
+      const opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.name;
+      opt.title = b.description;
+      select.appendChild(opt);
+    }
+  } catch (err) {
+    console.warn("Could not load baselines:", err.message);
+  }
+}
+
+document.getElementById("baseline-select").addEventListener("change", (e) => {
+  const b = baselines.find(b => b.id === e.target.value);
+  if (!b) return;
+
+  document.getElementById("image-user").value  = b.image_user || "";
+  document.getElementById("image-name").value  = b.image_name || "";
+  document.getElementById("image-tag").value   = b.image_tag  || "latest";
+  document.getElementById("entrypoint").value  = b.entrypoint || "";
+  document.getElementById("work-dir").value    = b.work_dir   || "";
+  document.getElementById("run-as").value      = b.run_as     || "65532";
+
+  document.getElementById("arch-amd64").checked   = (b.archs || []).includes("amd64");
+  document.getElementById("arch-aarch64").checked = (b.archs || []).includes("aarch64");
+
+  envRows = (b.env || []).map(e => ({ key: e.key, value: e.value }));
+  renderEnvRows();
+
+  profile.packages = [...(b.packages || [])];
+  renderProfilePackages();
+
+  yamlModified = false;
+  autoRenderYaml();
+  updateYamlBadge();
+  updateHeaderRef();
+  refilterPackageList();
+
+  e.target.value = "";
+});
+
+
+// ─── Clear ─────────────────────────────────────────────────────────────────────
+document.getElementById("clear-btn").addEventListener("click", () => {
+  profile.packages = [];
+  envRows = [];
+  ["entrypoint", "work-dir"].forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("run-as").value       = "65532";
+  document.getElementById("image-user").value   = "";
+  document.getElementById("image-name").value   = "my-image";
+  document.getElementById("image-tag").value    = "latest";
+  document.getElementById("arch-amd64").checked   = true;
+  document.getElementById("arch-aarch64").checked = false;
+  yamlModified = false;
+  renderEnvRows();
+  renderProfilePackages();
+  forceRenderYaml();
+  updateHeaderRef();
+  refilterPackageList();
+});
+
+
+// ─── Build ─────────────────────────────────────────────────────────────────────
+document.getElementById("build-btn").addEventListener("click", async () => {
+  const yaml      = document.getElementById("yaml-editor").value;
+  const { imagePart, tag } = getRef();
+  const statusEl  = document.getElementById("build-status");
+  const buildBtn  = document.getElementById("build-btn");
+
+  buildBtn.disabled    = true;
+  statusEl.className   = "";
+  statusEl.textContent = "Submitting build…";
+
+  const form = new FormData();
+  form.append("image_name", imagePart);
+  form.append("image_tag",  tag);
+  form.append("file", new Blob([yaml], { type: "application/yaml" }), "profile.yaml");
+
+  try {
+    const submitResp = await fetch("/build", { method: "POST", body: form });
+    if (!submitResp.ok) throw new Error(`Submit failed: HTTP ${submitResp.status}`);
+    const { job_id } = await submitResp.json();
+
+    statusEl.textContent = "Building…";
+
+    while (true) {
+      await new Promise(r => setTimeout(r, 1500));
+      const job = await (await fetch(`/status/${job_id}`)).json();
+      if (job.status === "success") {
+        statusEl.className   = "success";
+        statusEl.textContent = `Built: ${job.output}`;
+        break;
+      }
+      if (job.status === "failed") {
+        statusEl.className   = "failed";
+        statusEl.textContent = "Build failed — check server logs";
+        break;
+      }
+    }
+  } catch (err) {
+    statusEl.className   = "failed";
+    statusEl.textContent = `Error: ${err.message}`;
+  } finally {
+    buildBtn.disabled = !profile.packages.length;
+  }
+});
+
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+loadRepos();
+loadBaselines();
+updateHeaderRef();
+</script>
+
+</body>
+</html>
