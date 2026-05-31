@@ -7,6 +7,8 @@ import threading
 import time
 import dataclasses
 import json
+import urllib.request
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 import package_index
 
@@ -119,6 +121,12 @@ def logo():
         print(file.read())
 
 app = Flask(__name__)
+
+# Feature flag: set ENABLE_WOLFI_SOURCE=1 to activate the /wolfi/* routes
+if os.environ.get("ENABLE_WOLFI_SOURCE", "0") == "1":
+    from wolfi_source import wolfi_bp
+    app.register_blueprint(wolfi_bp)
+    print("[feature] wolfi source browser enabled")
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +247,12 @@ def status(job_id: str):
 def index():
     """Serve the image builder UI."""
     return render_template("index.html")
+
+
+@app.route("/melange", methods=["GET"])
+def melange():
+    """Serve the package builder UI."""
+    return render_template("melange.html")
 
 
 @app.route("/baselines", methods=["GET"])

@@ -27,6 +27,7 @@ services:
       - ./infra/images:/app/images
     environment:
       - REGISTRY_HOST=localhost:5000
+      - ENABLE_WOLFI_SOURCE=1
 
   registry:
     image: registry:2

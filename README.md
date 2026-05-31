@@ -293,10 +293,12 @@ worf/
 │   ├── apko_server/                # apko-flask-server source
 │   │   ├── apko_flask_server.py    # Flask app — routes, job queue, package cache
 │   │   ├── package_index.py        # Wolfi APKINDEX fetch and parse
+│   │   ├── wolfi_source.py         # [feature: ENABLE_WOLFI_SOURCE] /wolfi/* routes
 │   │   ├── Dockerfile              # builds on top of the APKO-native base image
 │   │   ├── requirements.txt        # flask, pyyaml, pytest
 │   │   ├── templates/
-│   │   │   └── index.html          # image builder UI
+│   │   │   ├── index.html          # image builder UI (APKO)
+│   │   │   └── melange.html        # package builder UI (Melange)
 │   │   ├── test_apko_flask_server.py
 │   │   └── test_package_index.py
 │   │
@@ -387,6 +389,40 @@ All tuneable values are read from environment variables so nothing needs to chan
 | `PACKAGE_CACHE_TTL` | `300` | Seconds before the Wolfi package list is re-fetched. |
 | `WOLFI_BASE_URL` | `https://packages.wolfi.dev/os` | Wolfi package repository base URL. Set to `http://apk-server:8080` to route through the local proxy. |
 | `GGCR_INSECURE` | `1` (hardcoded) | Allows pushing to registries without TLS. Required for the local registry. |
+
+---
+
+## Feature flags
+
+Optional capabilities that are disabled by default. Enable them by setting the corresponding environment variable to `1` in `docker-compose.yml` or your deployment config.
+
+### `ENABLE_WOLFI_SOURCE`
+
+**Default:** `0` (disabled)
+
+Activates the Wolfi source package browser — a separate module (`wolfi_source.py`) that lets you browse and fetch melange build YAMLs from the [wolfi-dev/os](https://github.com/wolfi-dev/os) repository directly from the package builder UI.
+
+When enabled, registers the `/wolfi/*` routes:
+
+| Route | Description |
+|---|---|
+| `GET /wolfi/list` | Returns a sorted list of package YAML filenames from the wolfi-dev/os repo. Uses the GitHub Git Trees API (one request, not a clone) and caches the result for `WOLFI_LIST_TTL` seconds. |
+| `GET /wolfi/fetch?file=<name>.yaml` | Fetches a single package YAML on demand using `wget` (falls back to `urllib` if wget is unavailable). Returns raw YAML for the UI to load into the editor. |
+
+**To enable:**
+```yaml
+# docker-compose.yml
+environment:
+  - ENABLE_WOLFI_SOURCE=1
+```
+
+The Wolfi source browser appears as a second tab ("Wolfi Source") in the left panel of the package builder UI at `http://localhost:8081/melange`. Clicking a package fetches its melange YAML and loads it directly into the YAML editor.
+
+**Additional tuning:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `WOLFI_LIST_TTL` | `3600` | Seconds to cache the wolfi-dev/os file listing before re-fetching from GitHub. |
 
 ---
 

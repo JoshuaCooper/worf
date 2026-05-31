@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WORF — Package Builder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1   { font-size: 1rem; color: #58a6ff; letter-spacing: 0.1em; }
+    header .sub { color: #8b949e; font-size: 0.8rem; }
+    .nav-link {
+      color: #8b949e; font-size: 0.75rem; text-decoration: none;
+      border: 1px solid #30363d; border-radius: 4px; padding: 3px 8px;
+    }
+    .nav-link:hover { color: #c9d1d9; border-color: #484f58; }
+    #header-ref { margin-left: auto; color: #e3b341; font-size: 0.8rem; }
+
+    /* ── Layout ──────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 290px 380px 1fr;
+      grid-template-rows: 1fr auto;
+      overflow: hidden;
+      transition: grid-template-columns 0.2s ease;
+    }
+    main.browser-collapsed { grid-template-columns: 40px 380px 1fr; }
+
+    .panel {
+      border-right: 1px solid #21262d;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid #21262d;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b949e;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Browser panel ───────────────────────────────────── */
+    #browser-panel .browser-body  { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    #browser-panel .browser-strip { display: none; }
+    #browser-panel.collapsed .browser-body  { display: none; }
+    #browser-panel.collapsed .browser-strip { display: flex; }
+
+    /* ── Left panel tab bar ──────────────────────────────── */
+    .panel-tab-bar {
+      display: flex; align-items: center;
+      border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    .panel-tab {
+      padding: 9px 14px; background: none; border: none;
+      font: inherit; font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #484f58;
+      cursor: pointer; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; white-space: nowrap;
+    }
+    .panel-tab:hover  { color: #8b949e; }
+    .panel-tab.active { color: #c9d1d9; border-bottom-color: #e3b341; }
+    .panel-tab-bar .collapse-btn { margin-left: auto; margin-right: 10px; }
+
+    /* ── Wolfi source browser ────────────────────────────── */
+    .wolfi-search {
+      width: 100%; background: #161b22; border: none;
+      border-bottom: 1px solid #21262d; padding: 10px 16px;
+      color: #c9d1d9; font: inherit; font-size: 0.85rem; outline: none; flex-shrink: 0;
+    }
+    .wolfi-search::placeholder { color: #484f58; }
+    .wolfi-search:focus { border-bottom-color: #e3b341; }
+
+    .wolfi-count {
+      padding: 6px 16px; font-size: 0.72rem; color: #484f58;
+      border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+
+    .wolfi-list { flex: 1; overflow-y: auto; list-style: none; }
+    .wolfi-list li {
+      padding: 8px 14px; cursor: pointer;
+      border-bottom: 1px solid #161b22;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .wolfi-list li:hover { background: #161b22; }
+    .wolfi-list li.loading { cursor: default; color: #484f58; font-size: 0.8rem; }
+    .wolfi-list li.error   { cursor: default; color: #f85149; font-size: 0.8rem; }
+
+    .wolfi-pkg-name { font-size: 0.85rem; color: #c9d1d9; flex: 1; min-width: 0;
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wolfi-fetch-indicator {
+      font-size: 0.65rem; color: #484f58; flex-shrink: 0;
+    }
+    .wolfi-list li:hover .wolfi-fetch-indicator { color: #e3b341; }
+
+    .repo-bar {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 8px 12px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    .repo-pill {
+      display: flex; align-items: center; gap: 5px;
+      padding: 3px 10px 3px 7px; border-radius: 12px;
+      border: 1px solid #30363d; background: #161b22;
+      color: #8b949e; font: inherit; font-size: 0.75rem;
+      cursor: pointer; white-space: nowrap;
+      transition: border-color 0.1s, color 0.1s;
+    }
+    .repo-pill .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      flex-shrink: 0; opacity: 0.4; transition: opacity 0.1s;
+    }
+    .repo-pill.active { color: #c9d1d9; border-color: #484f58; }
+    .repo-pill.active .dot { opacity: 1; }
+
+    #search-input {
+      width: 100%; background: #161b22; border: none;
+      border-bottom: 1px solid #21262d; padding: 10px 16px;
+      color: #c9d1d9; font: inherit; font-size: 0.85rem; outline: none; flex-shrink: 0;
+    }
+    #search-input::placeholder { color: #484f58; }
+    #search-input:focus { border-bottom-color: #58a6ff; }
+
+    #package-count {
+      padding: 6px 16px; font-size: 0.72rem; color: #484f58;
+      border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+
+    #package-list { flex: 1; overflow-y: auto; list-style: none; }
+    #package-list li {
+      padding: 7px 12px; cursor: pointer;
+      border-bottom: 1px solid #161b22;
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    #package-list li:hover { background: #161b22; }
+    #package-list li.in-profile { opacity: 0.35; cursor: default; }
+
+    .repo-badge {
+      font-size: 0.6rem; font-weight: 700; padding: 1px 4px;
+      border-radius: 3px; color: #0d1117; flex-shrink: 0;
+      margin-top: 3px; letter-spacing: 0.03em;
+    }
+    .pkg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .pkg-name    { font-size: 0.85rem; color: #79c0ff; }
+    .pkg-version { font-size: 0.72rem; color: #8b949e; }
+    .pkg-desc    { font-size: 0.72rem; color: #6e7681; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #loading-msg { padding: 16px; color: #484f58; font-size: 0.8rem; }
+
+    /* ── Collapse / expand ───────────────────────────────── */
+    .collapse-btn {
+      background: none; border: none; color: #484f58;
+      cursor: pointer; font-size: 0.8rem; padding: 0 2px; line-height: 1;
+    }
+    .collapse-btn:hover { color: #8b949e; }
+
+    .browser-strip {
+      flex-direction: column; align-items: center;
+      padding: 8px 0; gap: 8px; flex: 1;
+    }
+    .strip-btn {
+      background: none; border: none; color: #484f58;
+      cursor: pointer; font-size: 0.85rem; padding: 4px; line-height: 1;
+    }
+    .strip-btn:hover { color: #8b949e; }
+    .strip-dots { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 4px; }
+    .strip-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      cursor: pointer; opacity: 0.3; transition: opacity 0.1s;
+      border: none; padding: 0; flex-shrink: 0;
+    }
+    .strip-dot.active { opacity: 1; }
+    .strip-dot:hover  { opacity: 0.8; }
+
+    /* ── Profile panel ───────────────────────────────────── */
+    #profile-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+    .profile-section {
+      padding: 12px 16px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    .profile-section > .section-label {
+      display: block; font-size: 0.7rem; color: #8b949e;
+      margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .profile-section input[type="text"],
+    .profile-section select {
+      width: 100%; background: #161b22; border: 1px solid #30363d;
+      border-radius: 4px; padding: 6px 10px; color: #c9d1d9;
+      font: inherit; font-size: 0.85rem; outline: none;
+    }
+    .profile-section input[type="text"]:focus,
+    .profile-section select:focus { border-color: #58a6ff; }
+    .profile-section select option { background: #161b22; }
+
+    .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 72px; gap: 8px; }
+    .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .field-group > label {
+      display: block; font-size: 0.7rem; color: #8b949e;
+      margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .field-group input {
+      width: 100%; background: #161b22; border: 1px solid #30363d;
+      border-radius: 4px; padding: 6px 10px; color: #c9d1d9;
+      font: inherit; font-size: 0.85rem; outline: none;
+    }
+    .field-group input:focus { border-color: #58a6ff; }
+
+    .arch-toggles { display: flex; gap: 16px; }
+    .arch-toggles label {
+      display: flex; align-items: center; gap: 6px;
+      text-transform: none; letter-spacing: 0;
+      cursor: pointer; font-size: 0.85rem; color: #c9d1d9;
+    }
+
+    /* ── Section headers ─────────────────────────────────── */
+    .list-header {
+      padding: 8px 16px; font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #8b949e; border-bottom: 1px solid #21262d;
+      flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    }
+    .list-header .count { color: #58a6ff; }
+    .list-header .count.yellow { color: #e3b341; }
+
+    /* ── Build deps list ─────────────────────────────────── */
+    #build-deps { list-style: none; border-bottom: 1px solid #21262d; }
+    #build-deps li {
+      padding: 7px 16px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid #161b22; font-size: 0.85rem;
+    }
+    #build-deps li:hover { background: #161b22; }
+
+    /* ── Pipeline list ───────────────────────────────────── */
+    #pipeline-steps { list-style: none; border-bottom: 1px solid #21262d; }
+    #pipeline-steps > li {
+      padding: 8px 16px; border-bottom: 1px solid #161b22;
+      font-size: 0.8rem; display: flex; align-items: flex-start; gap: 8px;
+    }
+    #pipeline-steps > li:hover { background: #161b22; }
+
+    .step-badge {
+      font-size: 0.6rem; font-weight: 700; padding: 2px 5px;
+      border-radius: 3px; flex-shrink: 0; margin-top: 2px; letter-spacing: 0.03em;
+    }
+    .step-badge.run  { background: #3fb950; color: #0d1117; }
+    .step-badge.uses { background: #e3b341; color: #0d1117; }
+
+    .step-body { flex: 1; min-width: 0; }
+    .step-name { color: #c9d1d9; }
+    .step-with { font-size: 0.72rem; color: #6e7681; margin-top: 2px; }
+
+    .step-controls { display: flex; gap: 2px; flex-shrink: 0; }
+    .step-move {
+      background: none; border: none; color: #484f58;
+      cursor: pointer; font-size: 0.7rem; padding: 2px 3px; line-height: 1;
+    }
+    .step-move:hover { color: #8b949e; }
+    .step-move:disabled { opacity: 0.2; cursor: default; }
+
+    /* ── Add step form ───────────────────────────────────── */
+    .add-step-section {
+      padding: 12px 16px; border-bottom: 1px solid #21262d;
+      display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+    }
+    .add-step-section select,
+    .add-step-section input,
+    .add-step-section textarea {
+      width: 100%; background: #161b22; border: 1px solid #30363d;
+      border-radius: 4px; padding: 6px 10px; color: #c9d1d9;
+      font: inherit; font-size: 0.8rem; outline: none;
+    }
+    .add-step-section select:focus,
+    .add-step-section input:focus,
+    .add-step-section textarea:focus { border-color: #58a6ff; }
+    .add-step-section select option { background: #161b22; }
+    .add-step-section textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+
+    #step-with-rows { display: flex; flex-direction: column; gap: 6px; }
+    .with-row { display: flex; align-items: center; gap: 6px; }
+    .with-row input { flex: 1; }
+    .with-sep { color: #484f58; font-size: 0.8rem; flex-shrink: 0; }
+
+    /* ── Shared controls ─────────────────────────────────── */
+    .remove-btn {
+      background: none; border: none; color: #6e7681;
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 3px; flex-shrink: 0;
+    }
+    .remove-btn:hover { color: #f85149; }
+
+    .add-btn {
+      background: none; border: 1px solid #30363d; border-radius: 4px;
+      color: #8b949e; cursor: pointer; font: inherit; font-size: 0.75rem;
+      padding: 4px 10px; align-self: flex-start;
+    }
+    .add-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    .empty-msg { padding: 14px 16px; color: #484f58; font-size: 0.8rem; }
+
+    /* ── YAML editor ─────────────────────────────────────── */
+    .yaml-toolbar {
+      padding: 7px 16px; border-bottom: 1px solid #21262d;
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .yaml-badge {
+      font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+      background: #161b22; color: #8b949e; border: 1px solid #30363d;
+    }
+    .yaml-badge.modified { background: #2d1e00; color: #e3b341; border-color: #9e6a03; }
+
+    .btn-ghost {
+      background: none; border: 1px solid #30363d; border-radius: 4px;
+      color: #8b949e; cursor: pointer; font: inherit; font-size: 0.72rem; padding: 3px 10px;
+    }
+    .btn-ghost:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    #yaml-editor {
+      flex: 1; background: #0d1117; color: #adbac7; border: none;
+      padding: 16px; font: inherit; font-size: 0.8rem; line-height: 1.6;
+      resize: none; outline: none;
+    }
+    #yaml-editor::placeholder { color: #484f58; }
+
+    /* ── Bottom bar ──────────────────────────────────────── */
+    #bottom-bar {
+      grid-column: 1 / -1; border-top: 1px solid #21262d;
+      padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .btn { padding: 6px 16px; border-radius: 4px; border: none; font: inherit; font-size: 0.8rem; cursor: pointer; }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-primary:disabled { background: #21262d; color: #484f58; cursor: default; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-secondary:hover { background: #30363d; }
+
+    #build-status { font-size: 0.8rem; color: #8b949e; }
+    #build-status.success { color: #3fb950; }
+    #build-status.failed  { color: #f85149; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>W.O.R.F.</h1>
+  <span class="sub">Package Builder</span>
+  <a href="/" class="nav-link">Image Builder</a>
+  <span id="header-ref"></span>
+</header>
+
+<main id="main-grid">
+
+  <!-- ── Left panel ────────────────────────────────────── -->
+  <section class="panel" id="browser-panel">
+
+    <!-- Tab bar (replaces static panel-header) -->
+    <div class="panel-tab-bar">
+      <button class="panel-tab active" id="tab-deps-btn">Build Deps</button>
+      <button class="panel-tab"        id="tab-wolfi-btn">Wolfi Source</button>
+      <button class="collapse-btn" id="collapse-btn" title="Collapse panel">◀</button>
+    </div>
+
+    <!-- ── Tab: Build Deps (APK package browser) ── -->
+    <div class="browser-body" id="tab-deps">
+      <div class="repo-bar" id="repo-bar"></div>
+      <input id="search-input" type="text" placeholder="Search packages…" autocomplete="off" spellcheck="false">
+      <div id="package-count"></div>
+      <ul id="package-list">
+        <li id="loading-msg">Loading package index…</li>
+      </ul>
+    </div>
+
+    <!-- ── Tab: Wolfi Source (upstream build YAMLs) ── -->
+    <div class="browser-body" id="tab-wolfi" style="display:none">
+      <input id="wolfi-search" type="text" placeholder="Search wolfi packages…" autocomplete="off" spellcheck="false" class="wolfi-search">
+      <div id="wolfi-count" class="wolfi-count">Loading wolfi-dev/os…</div>
+      <ul id="wolfi-list" class="wolfi-list"></ul>
+    </div>
+
+    <!-- Collapsed strip (shown when panel is collapsed) -->
+    <div class="browser-strip" id="browser-strip">
+      <button class="strip-btn" id="expand-btn" title="Expand panel">▶</button>
+      <div class="strip-dots" id="strip-dots"></div>
+    </div>
+  </section>
+
+  <!-- ── Package profile ────────────────────────────────── -->
+  <section class="panel">
+    <div class="panel-header">Package Profile</div>
+    <div id="profile-scroll">
+
+      <div class="profile-section">
+        <div class="field-grid-3">
+          <div class="field-group">
+            <label>Name</label>
+            <input type="text" id="pkg-name" placeholder="my-package">
+          </div>
+          <div class="field-group">
+            <label>Version</label>
+            <input type="text" id="pkg-version" placeholder="0.1.0">
+          </div>
+          <div class="field-group">
+            <label>Epoch</label>
+            <input type="text" id="pkg-epoch" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <div class="field-grid-2">
+          <div class="field-group">
+            <label>Description</label>
+            <input type="text" id="pkg-desc" placeholder="Short description">
+          </div>
+          <div class="field-group">
+            <label>License</label>
+            <input type="text" id="pkg-license" placeholder="Apache-2.0">
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <span class="section-label">Architectures</span>
+        <div class="arch-toggles">
+          <label><input type="checkbox" id="arch-amd64" checked> amd64</label>
+          <label><input type="checkbox" id="arch-aarch64"> aarch64</label>
+        </div>
+      </div>
+
+      <div class="list-header">
+        Build Dependencies
+        <span class="count" id="dep-count-badge"></span>
+      </div>
+      <ul id="build-deps">
+        <li class="empty-msg">No build deps — click packages on the left.</li>
+      </ul>
+
+      <div class="list-header">
+        Pipeline
+        <span class="count yellow" id="step-count-badge"></span>
+      </div>
+      <ul id="pipeline-steps">
+        <li class="empty-msg">No steps yet.</li>
+      </ul>
+
+      <div class="add-step-section">
+        <select id="step-type-select">
+          <option value="">— add a pipeline step —</option>
+          <optgroup label="Source">
+            <option value="git-checkout">uses: git-checkout</option>
+            <option value="fetch">uses: fetch</option>
+          </optgroup>
+          <optgroup label="Autotools">
+            <option value="autoconf/configure">uses: autoconf/configure</option>
+            <option value="autoconf/make">uses: autoconf/make</option>
+            <option value="autoconf/make-install">uses: autoconf/make-install</option>
+          </optgroup>
+          <optgroup label="CMake">
+            <option value="cmake/configure">uses: cmake/configure</option>
+            <option value="cmake/build">uses: cmake/build</option>
+            <option value="cmake/install">uses: cmake/install</option>
+          </optgroup>
+          <optgroup label="Go">
+            <option value="go/build">uses: go/build</option>
+            <option value="go/bump">uses: go/bump</option>
+          </optgroup>
+          <optgroup label="Python">
+            <option value="python/build">uses: python/build</option>
+            <option value="python/install">uses: python/install</option>
+          </optgroup>
+          <optgroup label="Post-build">
+            <option value="strip">uses: strip</option>
+            <option value="split/dev">uses: split/dev</option>
+            <option value="split/debug">uses: split/debug</option>
+            <option value="split/docs">uses: split/docs</option>
+            <option value="split/locale">uses: split/locale</option>
+            <option value="split/manpages">uses: split/manpages</option>
+          </optgroup>
+          <optgroup label="Custom">
+            <option value="__run__">run: shell commands</option>
+          </optgroup>
+        </select>
+        <div id="step-fields" style="display:none; flex-direction:column; gap:8px;"></div>
+        <button class="add-btn" id="add-step-btn" style="display:none">Add step</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── YAML editor ────────────────────────────────────── -->
+  <section class="panel">
+    <div class="panel-header">Melange YAML</div>
+    <div class="yaml-toolbar">
+      <span class="yaml-badge" id="yaml-badge">auto</span>
+      <button class="btn-ghost" id="yaml-regen-btn" style="display:none">Regenerate from profile</button>
+    </div>
+    <textarea id="yaml-editor" spellcheck="false" placeholder="# Fill in the profile to generate YAML"></textarea>
+  </section>
+
+  <!-- ── Bottom bar ─────────────────────────────────────── -->
+  <div id="bottom-bar">
+    <button class="btn btn-primary"   id="build-btn"  disabled>Build package</button>
+    <button class="btn btn-secondary" id="clear-btn">Clear</button>
+    <span id="build-status"></span>
+  </div>
+
+</main>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────────
+let repoConfigs  = [];
+let repoEnabled  = {};
+let repoPackages = {};
+let allPackages  = [];
+let buildDeps    = [];
+let pipeline     = []; // [{type:"uses"|"run", uses:string, with:[{key,val}], runs:string}]
+let yamlModified = false;
+let pendingWith  = [];  // key-value rows in the active "add step" form
+
+const STEP_WITH_DEFAULTS = {
+  "git-checkout": [
+    { key: "repository",      val: "" },
+    { key: "tag",             val: "" },
+    { key: "expected-commit", val: "" },
+  ],
+  "fetch": [
+    { key: "uri",             val: "" },
+    { key: "expected-sha256", val: "" },
+  ],
+  "go/build": [
+    { key: "packages", val: "./..." },
+    { key: "output",   val: "" },
+    { key: "ldflags",  val: "" },
+  ],
+};
+
+
+// ─── Repo helpers (identical to index.html) ────────────────────────────────────
+function activeRepos() { return repoConfigs.filter(r => repoEnabled[r.id]); }
+function repoById(id)  { return repoConfigs.find(r => r.id === id); }
+
+async function loadRepos() {
+  try {
+    const resp = await fetch("/repos");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    repoConfigs = await resp.json();
+  } catch (err) {
+    repoConfigs = [{ id: "wolfi", name: "Wolfi OS", color: "#58a6ff", short: "W",
+      base_url: "https://packages.wolfi.dev/os",
+      keyring:  "https://packages.wolfi.dev/os/wolfi-signing.rsa.pub" }];
+    console.warn("Could not load repos:", err.message);
+  }
+  repoConfigs.forEach(r => { repoEnabled[r.id] = (r.id === "wolfi"); });
+  buildRepoBar();
+  buildStripDots();
+  await Promise.all(repoConfigs.filter(r => repoEnabled[r.id]).map(r => fetchRepoPackages(r.id)));
+  rebuildPackageList();
+}
+
+async function fetchRepoPackages(repoId) {
+  if (repoPackages[repoId]) return;
+  try {
+    const resp = await fetch(`/packages?repo=${repoId}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const pkgs = await resp.json();
+    pkgs.sort((a, b) => a.name.localeCompare(b.name));
+    repoPackages[repoId] = pkgs;
+  } catch (err) {
+    repoPackages[repoId] = [];
+    console.warn(`Failed to load packages for ${repoId}:`, err.message);
+  }
+}
+
+function buildRepoBar() {
+  const bar = document.getElementById("repo-bar");
+  bar.innerHTML = "";
+  for (const repo of repoConfigs) {
+    const btn = document.createElement("button");
+    btn.className = "repo-pill" + (repoEnabled[repo.id] ? " active" : "");
+    btn.dataset.repo = repo.id;
+    btn.innerHTML = `<span class="dot" style="background:${repo.color}"></span>${repo.name}`;
+    btn.addEventListener("click", () => toggleRepo(repo.id));
+    bar.appendChild(btn);
+  }
+}
+
+function buildStripDots() {
+  const container = document.getElementById("strip-dots");
+  container.innerHTML = "";
+  for (const repo of repoConfigs) {
+    const btn = document.createElement("button");
+    btn.className = "strip-dot" + (repoEnabled[repo.id] ? " active" : "");
+    btn.dataset.repo = repo.id;
+    btn.style.background = repo.color;
+    btn.title = repo.name;
+    btn.addEventListener("click", () => toggleRepo(repo.id));
+    container.appendChild(btn);
+  }
+}
+
+async function toggleRepo(repoId) {
+  repoEnabled[repoId] = !repoEnabled[repoId];
+  document.querySelector(`.repo-pill[data-repo="${repoId}"]`)?.classList.toggle("active", repoEnabled[repoId]);
+  document.querySelector(`.strip-dot[data-repo="${repoId}"]`)?.classList.toggle("active", repoEnabled[repoId]);
+  if (repoEnabled[repoId] && !repoPackages[repoId]) await fetchRepoPackages(repoId);
+  rebuildPackageList();
+  autoRenderYaml();
+}
+
+
+// ─── Package list ──────────────────────────────────────────────────────────────
+const MAX_DISPLAY = 100;
+
+function rebuildPackageList() {
+  const seen = new Map();
+  for (const repo of activeRepos()) {
+    for (const pkg of (repoPackages[repo.id] || [])) {
+      if (!seen.has(pkg.name)) seen.set(pkg.name, { ...pkg, _repo: repo.id });
+    }
+  }
+  allPackages = Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  refilterPackageList();
+}
+
+function renderPackageList(pkgs) {
+  const ul      = document.getElementById("package-list");
+  const counter = document.getElementById("package-count");
+  ul.innerHTML  = "";
+
+  if (!pkgs.length) {
+    counter.textContent = "No matches";
+    ul.innerHTML = `<li style="padding:12px 16px;color:#484f58;font-size:0.8rem">No packages match.</li>`;
+    return;
+  }
+
+  const visible = pkgs.slice(0, MAX_DISPLAY);
+  counter.textContent = pkgs.length > MAX_DISPLAY
+    ? `Showing ${MAX_DISPLAY} of ${pkgs.length} — refine your search`
+    : `${pkgs.length} package${pkgs.length === 1 ? "" : "s"}`;
+
+  for (const pkg of visible) {
+    const repo = repoById(pkg._repo);
+    const li   = document.createElement("li");
+    if (buildDeps.includes(pkg.name)) li.classList.add("in-profile");
+    li.innerHTML = `
+      <span class="repo-badge" style="background:${repo?.color || '#484f58'}" title="${repo?.name || ''}">${repo?.short || '?'}</span>
+      <div class="pkg-info">
+        <span class="pkg-name">${pkg.name}</span>
+        <span class="pkg-version">${pkg.version}</span>
+        <span class="pkg-desc">${pkg.description || ""}</span>
+      </div>
+    `;
+    li.addEventListener("click", () => {
+      if (!buildDeps.includes(pkg.name)) addBuildDep(pkg.name);
+    });
+    ul.appendChild(li);
+  }
+}
+
+function refilterPackageList() {
+  const q = document.getElementById("search-input").value.trim().toLowerCase();
+  renderPackageList(q
+    ? allPackages.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q) ||
+        (p.origin || "").toLowerCase().includes(q))
+    : allPackages);
+}
+
+document.getElementById("search-input").addEventListener("input", refilterPackageList);
+
+
+// ─── Collapse / expand ─────────────────────────────────────────────────────────
+document.getElementById("collapse-btn").addEventListener("click", () => {
+  document.getElementById("main-grid").classList.add("browser-collapsed");
+  document.getElementById("browser-panel").classList.add("collapsed");
+});
+document.getElementById("expand-btn").addEventListener("click", () => {
+  document.getElementById("main-grid").classList.remove("browser-collapsed");
+  document.getElementById("browser-panel").classList.remove("collapsed");
+});
+
+
+// ─── Build deps ────────────────────────────────────────────────────────────────
+function addBuildDep(name) {
+  if (buildDeps.includes(name)) return;
+  buildDeps.push(name);
+  renderBuildDeps();
+  autoRenderYaml();
+  refilterPackageList();
+}
+
+function removeBuildDep(name) {
+  buildDeps = buildDeps.filter(p => p !== name);
+  renderBuildDeps();
+  autoRenderYaml();
+  refilterPackageList();
+}
+
+function renderBuildDeps() {
+  const ul    = document.getElementById("build-deps");
+  const badge = document.getElementById("dep-count-badge");
+  badge.textContent = buildDeps.length ? `(${buildDeps.length})` : "";
+  ul.innerHTML = "";
+  if (!buildDeps.length) {
+    ul.innerHTML = `<li class="empty-msg">No build deps — click packages on the left.</li>`;
+    return;
+  }
+  for (const name of buildDeps) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${name}</span><button class="remove-btn" title="Remove">×</button>`;
+    li.querySelector(".remove-btn").addEventListener("click", () => removeBuildDep(name));
+    ul.appendChild(li);
+  }
+}
+
+
+// ─── Pipeline rendering ────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str)
+    .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderPipeline() {
+  const ul    = document.getElementById("pipeline-steps");
+  const badge = document.getElementById("step-count-badge");
+  badge.textContent = pipeline.length ? `(${pipeline.length})` : "";
+  ul.innerHTML = "";
+
+  if (!pipeline.length) {
+    ul.innerHTML = `<li class="empty-msg">No steps yet.</li>`;
+    updateBuildBtn();
+    return;
+  }
+
+  pipeline.forEach((step, i) => {
+    const li = document.createElement("li");
+    let name, withPreview = "";
+
+    if (step.type === "run") {
+      const firstLine = step.runs.split("\n")[0];
+      name = esc(firstLine) + (step.runs.includes("\n") ? " <span style='color:#484f58'>…</span>" : "");
+    } else {
+      name = esc(step.uses);
+      const pairs = step.with.filter(w => w.key.trim() && w.val.trim());
+      if (pairs.length) {
+        withPreview = `<div class="step-with">${pairs.slice(0, 3).map(w => `${esc(w.key)}: ${esc(w.val)}`).join(" · ")}</div>`;
+      }
+    }
+
+    li.innerHTML = `
+      <span class="step-badge ${step.type === "run" ? "run" : "uses"}">${step.type === "run" ? "run" : "uses"}</span>
+      <div class="step-body">
+        <div class="step-name">${name}</div>
+        ${withPreview}
+      </div>
+      <div class="step-controls">
+        <button class="step-move" data-dir="up"   data-i="${i}" title="Move up"   ${i === 0 ? "disabled" : ""}>▲</button>
+        <button class="step-move" data-dir="down" data-i="${i}" title="Move down" ${i === pipeline.length - 1 ? "disabled" : ""}>▼</button>
+        <button class="remove-btn" data-i="${i}" title="Remove">×</button>
+      </div>
+    `;
+
+    li.querySelectorAll(".step-move:not([disabled])").forEach(btn => btn.addEventListener("click", e => {
+      const idx = +e.currentTarget.dataset.i;
+      if (e.currentTarget.dataset.dir === "up") {
+        [pipeline[idx - 1], pipeline[idx]] = [pipeline[idx], pipeline[idx - 1]];
+      } else {
+        [pipeline[idx + 1], pipeline[idx]] = [pipeline[idx], pipeline[idx + 1]];
+      }
+      renderPipeline();
+      autoRenderYaml();
+    }));
+
+    li.querySelector(".remove-btn").addEventListener("click", e => {
+      pipeline.splice(+e.currentTarget.dataset.i, 1);
+      renderPipeline();
+      autoRenderYaml();
+    });
+
+    ul.appendChild(li);
+  });
+
+  updateBuildBtn();
+}
+
+
+// ─── Add-step form ─────────────────────────────────────────────────────────────
+function renderWithRows() {
+  const container = document.getElementById("step-fields");
+  let wrapper = document.getElementById("step-with-rows");
+  if (wrapper) wrapper.remove();
+
+  wrapper = document.createElement("div");
+  wrapper.id = "step-with-rows";
+
+  pendingWith.forEach((row, i) => {
+    const div = document.createElement("div");
+    div.className = "with-row";
+    div.innerHTML = `
+      <input type="text" placeholder="key"   value="${esc(row.key)}" data-i="${i}" data-f="key">
+      <span class="with-sep">:</span>
+      <input type="text" placeholder="value" value="${esc(row.val)}" data-i="${i}" data-f="val">
+      <button class="remove-btn" data-i="${i}">×</button>
+    `;
+    div.querySelectorAll("input").forEach(inp => inp.addEventListener("input", e => {
+      pendingWith[+e.target.dataset.i][e.target.dataset.f === "key" ? "key" : "val"] = e.target.value;
+    }));
+    div.querySelector(".remove-btn").addEventListener("click", e => {
+      pendingWith.splice(+e.target.dataset.i, 1);
+      renderWithRows();
+    });
+    wrapper.appendChild(div);
+  });
+
+  const addWith = document.createElement("button");
+  addWith.className = "add-btn";
+  addWith.textContent = "+ with param";
+  addWith.addEventListener("click", () => {
+    pendingWith.push({ key: "", val: "" });
+    renderWithRows();
+  });
+  wrapper.appendChild(addWith);
+
+  container.appendChild(wrapper);
+}
+
+document.getElementById("step-type-select").addEventListener("change", function () {
+  const val      = this.value;
+  const fieldsEl = document.getElementById("step-fields");
+  const addBtn   = document.getElementById("add-step-btn");
+
+  fieldsEl.innerHTML = "";
+  pendingWith = [];
+
+  if (!val) {
+    fieldsEl.style.display = "none";
+    addBtn.style.display   = "none";
+    return;
+  }
+
+  fieldsEl.style.display = "flex";
+  addBtn.style.display   = "";
+
+  if (val === "__run__") {
+    const ta = document.createElement("textarea");
+    ta.id          = "step-runs-input";
+    ta.placeholder = "make\nmake install DESTDIR=\"$\x7B\x7Btargets.destdir\x7D\x7D\"";
+    fieldsEl.appendChild(ta);
+    return;
+  }
+
+  pendingWith = JSON.parse(JSON.stringify(STEP_WITH_DEFAULTS[val] || []));
+  renderWithRows();
+});
+
+document.getElementById("add-step-btn").addEventListener("click", () => {
+  const val = document.getElementById("step-type-select").value;
+  if (!val) return;
+
+  if (val === "__run__") {
+    const runs = (document.getElementById("step-runs-input")?.value || "").trim();
+    if (!runs) return;
+    pipeline.push({ type: "run", runs });
+  } else {
+    pipeline.push({ type: "uses", uses: val, with: JSON.parse(JSON.stringify(pendingWith)) });
+  }
+
+  document.getElementById("step-type-select").value = "";
+  document.getElementById("step-fields").style.display = "none";
+  document.getElementById("step-fields").innerHTML = "";
+  document.getElementById("add-step-btn").style.display = "none";
+  pendingWith = [];
+
+  renderPipeline();
+  autoRenderYaml();
+});
+
+
+// ─── YAML generation ──────────────────────────────────────────────────────────
+function generateYaml() {
+  const name    = document.getElementById("pkg-name").value.trim();
+  const version = document.getElementById("pkg-version").value.trim();
+  const epoch   = document.getElementById("pkg-epoch").value.trim() || "0";
+  const desc    = document.getElementById("pkg-desc").value.trim();
+  const license = document.getElementById("pkg-license").value.trim();
+
+  if (!name && !version && !buildDeps.length && !pipeline.length) return "";
+
+  const active       = activeRepos();
+  const keyringLines = active.map(r => `    - ${r.keyring}`).join("\n");
+  const repoLines    = active.map(r => `    - ${r.base_url}`).join("\n");
+
+  let yaml = "package:\n";
+  yaml += `  name: ${name || "my-package"}\n`;
+  yaml += `  version: ${version || "0.0.0"}\n`;
+  yaml += `  epoch: ${epoch}\n`;
+  if (desc)    yaml += `  description: "${desc}"\n`;
+  if (license) yaml += `  license: ${license}\n`;
+  if (license) yaml += `  copyright:\n    - license: ${license}\n`;
+
+  yaml += `\nenvironment:\n`;
+  yaml += `  contents:\n`;
+  yaml += `    keyring:\n${keyringLines}\n`;
+  yaml += `    repositories:\n${repoLines}\n`;
+  if (buildDeps.length) {
+    yaml += `    packages:\n`;
+    buildDeps.forEach(d => { yaml += `      - ${d}\n`; });
+  }
+
+  if (pipeline.length) {
+    yaml += `\npipeline:\n`;
+    for (const step of pipeline) {
+      if (step.type === "run") {
+        yaml += `  - runs: |\n`;
+        step.runs.split("\n").forEach(line => { yaml += `      ${line}\n`; });
+      } else {
+        yaml += `  - uses: ${step.uses}\n`;
+        const pairs = step.with.filter(w => w.key.trim());
+        if (pairs.length) {
+          yaml += `    with:\n`;
+          pairs.forEach(({ key, val }) => { yaml += `      ${key}: ${val}\n`; });
+        }
+      }
+    }
+  }
+
+  return yaml;
+}
+
+
+// ─── YAML panel state ──────────────────────────────────────────────────────────
+function autoRenderYaml() {
+  if (yamlModified) return;
+  document.getElementById("yaml-editor").value = generateYaml();
+}
+
+function forceRenderYaml() {
+  yamlModified = false;
+  document.getElementById("yaml-editor").value = generateYaml();
+  updateYamlBadge();
+}
+
+function updateYamlBadge() {
+  const badge    = document.getElementById("yaml-badge");
+  const regenBtn = document.getElementById("yaml-regen-btn");
+  if (yamlModified) {
+    badge.textContent = "edited"; badge.className = "yaml-badge modified";
+    regenBtn.style.display = "";
+  } else {
+    badge.textContent = "auto";  badge.className = "yaml-badge";
+    regenBtn.style.display = "none";
+  }
+}
+
+document.getElementById("yaml-editor").addEventListener("input", () => {
+  if (!yamlModified) { yamlModified = true; updateYamlBadge(); }
+});
+document.getElementById("yaml-regen-btn").addEventListener("click", forceRenderYaml);
+
+
+// ─── Profile field listeners ───────────────────────────────────────────────────
+["pkg-name", "pkg-version", "pkg-epoch", "pkg-desc", "pkg-license",
+ "arch-amd64", "arch-aarch64"].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener("input",  () => { autoRenderYaml(); updateHeaderRef(); });
+  el.addEventListener("change", () => { autoRenderYaml(); updateHeaderRef(); });
+});
+
+
+// ─── Header ref ────────────────────────────────────────────────────────────────
+function updateHeaderRef() {
+  const name    = document.getElementById("pkg-name").value.trim()    || "my-package";
+  const version = document.getElementById("pkg-version").value.trim() || "0.0.0";
+  const epoch   = document.getElementById("pkg-epoch").value.trim()   || "0";
+  document.getElementById("header-ref").textContent = `${name}-${version}-r${epoch}`;
+}
+
+
+// ─── Build button guard ────────────────────────────────────────────────────────
+function updateBuildBtn() {
+  const ready = document.getElementById("pkg-name").value.trim() !== ""
+             && document.getElementById("pkg-version").value.trim() !== ""
+             && pipeline.length > 0;
+  document.getElementById("build-btn").disabled = !ready;
+}
+
+["pkg-name", "pkg-version"].forEach(id => {
+  document.getElementById(id).addEventListener("input", updateBuildBtn);
+});
+
+
+// ─── Clear ─────────────────────────────────────────────────────────────────────
+document.getElementById("clear-btn").addEventListener("click", () => {
+  buildDeps = [];
+  pipeline  = [];
+  pendingWith = [];
+  ["pkg-name", "pkg-version", "pkg-desc", "pkg-license"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  document.getElementById("pkg-epoch").value        = "0";
+  document.getElementById("arch-amd64").checked     = true;
+  document.getElementById("arch-aarch64").checked   = false;
+  document.getElementById("step-type-select").value = "";
+  document.getElementById("step-fields").style.display = "none";
+  document.getElementById("step-fields").innerHTML  = "";
+  document.getElementById("add-step-btn").style.display = "none";
+  yamlModified = false;
+  renderBuildDeps();
+  renderPipeline();
+  forceRenderYaml();
+  updateHeaderRef();
+  refilterPackageList();
+});
+
+
+// ─── Build ─────────────────────────────────────────────────────────────────────
+document.getElementById("build-btn").addEventListener("click", async () => {
+  const yaml     = document.getElementById("yaml-editor").value;
+  const name     = document.getElementById("pkg-name").value.trim()    || "my-package";
+  const version  = document.getElementById("pkg-version").value.trim() || "0.0.0";
+  const epoch    = document.getElementById("pkg-epoch").value.trim()   || "0";
+  const archs    = [];
+  if (document.getElementById("arch-amd64").checked)   archs.push("amd64");
+  if (document.getElementById("arch-aarch64").checked) archs.push("aarch64");
+  if (!archs.length) archs.push("amd64");
+
+  const statusEl = document.getElementById("build-status");
+  const buildBtn = document.getElementById("build-btn");
+  buildBtn.disabled    = true;
+  statusEl.className   = "";
+  statusEl.textContent = "Submitting build…";
+
+  const form = new FormData();
+  form.append("package_name",    name);
+  form.append("package_version", version);
+  form.append("package_epoch",   epoch);
+  form.append("archs",           archs.join(","));
+  form.append("file", new Blob([yaml], { type: "application/yaml" }), "melange.yaml");
+
+  try {
+    const submitResp = await fetch("/melange/build", { method: "POST", body: form });
+    if (!submitResp.ok) throw new Error(`Submit failed: HTTP ${submitResp.status}`);
+    const { job_id } = await submitResp.json();
+    statusEl.textContent = "Building…";
+
+    while (true) {
+      await new Promise(r => setTimeout(r, 1500));
+      const job = await (await fetch(`/melange/status/${job_id}`)).json();
+      if (job.status === "success") {
+        statusEl.className   = "success";
+        statusEl.textContent = `Built: ${job.output}`;
+        break;
+      }
+      if (job.status === "failed") {
+        statusEl.className   = "failed";
+        statusEl.textContent = "Build failed — check server logs";
+        break;
+      }
+    }
+  } catch (err) {
+    statusEl.className   = "failed";
+    statusEl.textContent = `Error: ${err.message}`;
+  } finally {
+    updateBuildBtn();
+  }
+});
+
+
+// ─── Left panel tabs ───────────────────────────────────────────────────────────
+document.getElementById("tab-deps-btn").addEventListener("click", () => switchTab("deps"));
+document.getElementById("tab-wolfi-btn").addEventListener("click", () => switchTab("wolfi"));
+
+function switchTab(name) {
+  document.getElementById("tab-deps").style.display   = name === "deps"  ? "flex" : "none";
+  document.getElementById("tab-wolfi").style.display  = name === "wolfi" ? "flex" : "none";
+  document.getElementById("tab-deps-btn").classList.toggle("active",  name === "deps");
+  document.getElementById("tab-wolfi-btn").classList.toggle("active", name === "wolfi");
+  if (name === "wolfi" && wolfiFiles.length === 0 && !wolfiLoading) loadWolfiList();
+}
+
+
+// ─── Wolfi source browser ──────────────────────────────────────────────────────
+// Independent of the APK package browser — calls /wolfi/* which is its own
+// feature module (wolfi_source.py). No shared state with the build-deps tab.
+
+let wolfiFiles   = [];   // full list of filenames from /wolfi/list
+let wolfiLoading = false;
+let fetchingFile = null; // filename currently being fetched (for loading indicator)
+
+async function loadWolfiList() {
+  wolfiLoading = true;
+  document.getElementById("wolfi-count").textContent = "Fetching wolfi-dev/os file list…";
+
+  try {
+    const resp = await fetch("/wolfi/list");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    wolfiFiles = await resp.json();
+  } catch (err) {
+    document.getElementById("wolfi-count").textContent = `Error: ${err.message}`;
+    document.getElementById("wolfi-list").innerHTML =
+      `<li class="error">Could not load package list — is ENABLE_WOLFI_SOURCE=1?</li>`;
+    wolfiLoading = false;
+    return;
+  }
+
+  wolfiLoading = false;
+  renderWolfiList(wolfiFiles);
+}
+
+function renderWolfiList(files) {
+  const ul    = document.getElementById("wolfi-list");
+  const count = document.getElementById("wolfi-count");
+  ul.innerHTML = "";
+
+  if (!files.length) {
+    count.textContent = "No matches";
+    return;
+  }
+
+  count.textContent = `${files.length} package${files.length === 1 ? "" : "s"}`;
+
+  for (const filename of files) {
+    const pkgName = filename.replace(/\.yaml$/, "");
+    const li = document.createElement("li");
+    li.dataset.file = filename;
+    li.innerHTML = `
+      <span class="wolfi-pkg-name">${pkgName}</span>
+      <span class="wolfi-fetch-indicator">↓ load</span>
+    `;
+    li.addEventListener("click", () => loadWolfiYaml(filename, li));
+    ul.appendChild(li);
+  }
+}
+
+async function loadWolfiYaml(filename, liEl) {
+  if (fetchingFile) return; // prevent concurrent fetches
+  fetchingFile = filename;
+
+  const indicator = liEl.querySelector(".wolfi-fetch-indicator");
+  indicator.textContent = "…";
+
+  try {
+    const resp = await fetch(`/wolfi/fetch?file=${encodeURIComponent(filename)}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const yaml = await resp.text();
+
+    document.getElementById("yaml-editor").value = yaml;
+    yamlModified = true;
+    updateYamlBadge();
+
+    // Best-effort: parse name/version from the YAML to populate the header
+    const nameMatch    = yaml.match(/^  name:\s*(.+)$/m);
+    const versionMatch = yaml.match(/^  version:\s*(.+)$/m);
+    const epochMatch   = yaml.match(/^  epoch:\s*(.+)$/m);
+    if (nameMatch)    document.getElementById("pkg-name").value    = nameMatch[1].trim();
+    if (versionMatch) document.getElementById("pkg-version").value = versionMatch[1].trim();
+    if (epochMatch)   document.getElementById("pkg-epoch").value   = epochMatch[1].trim();
+    updateHeaderRef();
+    updateBuildBtn();
+
+  } catch (err) {
+    indicator.textContent = "err";
+    setTimeout(() => { indicator.textContent = "↓ load"; }, 2000);
+  } finally {
+    fetchingFile = null;
+    // Restore indicator on success after a moment
+    if (indicator.textContent === "…") indicator.textContent = "✓";
+  }
+}
+
+document.getElementById("wolfi-search").addEventListener("input", function () {
+  const q = this.value.trim().toLowerCase();
+  renderWolfiList(q ? wolfiFiles.filter(f => f.replace(".yaml", "").includes(q)) : wolfiFiles);
+});
+
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+loadRepos();
+updateHeaderRef();
+</script>
+
+</body>
+</html>

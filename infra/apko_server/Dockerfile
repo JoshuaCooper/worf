@@ -12,6 +12,7 @@ ENV PYTHONUNBUFFERED=1
 
 COPY apko_flask_server.py .
 COPY package_index.py .
+COPY wolfi_source.py .
 COPY baselines.json .
 COPY templates/ ./templates/
 USER nonroot
